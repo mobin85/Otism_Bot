@@ -1,5 +1,6 @@
 import asyncio
 import re
+from pathlib import Path
 from typing import Coroutine
 
 from util import *
@@ -97,11 +98,33 @@ class Bot(Client):
             elif res := re.search(r'otism_sound_video:(\d+)', call.data):
                 index = int(res.groups()[0])
                 obj: Video = Video.get_or_none(id=index)
+                if not obj:
+                    return
                 video_path, text = obj.video_path, obj.text
+                if Video.get_or_none(id=index + 1):
+                    continue_keyboard = InlineKeyboardMarkup([
+                        [InlineKeyboardButton("فهمیدیم، ادامه...", callback_data=f"otism_sound_video:{index + 1}")]
+                    ])
+                    if Path(video_path).suffix[1:] in ("mp4", "mkv", "avi", "m4v"):
+                        await self.send_video(call.message.chat.id, video_path, caption=text,
+                                              reply_markup=continue_keyboard)
+                    elif Path(video_path).suffix[1:] in ("png", "jpg", "jpeg"):
+                        await self.send_photo(call.message.chat.id, video_path, caption=text,
+                                              reply_markup=continue_keyboard)
+                elif not Video.get_or_none(id=index + 1):
+                    start_question_keyboard = InlineKeyboardMarkup([
+                        [InlineKeyboardButton("شروع آزمون", callback_data="start_question")]
+                    ])
+                    if Path(video_path).suffix[1:] in ("mp4", "mkv", "avi", "m4v"):
+                        await self.send_video(call.message.chat.id, video_path, caption=text,
+                                              reply_markup=start_question_keyboard)
+                    elif Path(video_path).suffix[1:] in ("png", "jpg", "jpeg"):
+                        await self.send_photo(call.message.chat.id, video_path, caption=text,
+                                              reply_markup=start_question_keyboard)
 
         self.run()
 
-    async def is_admin_checker(self, coroutine: Coroutine, user_id: int | str, check: bool = True):
+    async def is_admin_checker(self, coroutine: Coroutine, user_id: int, check: bool = True):
         if check:
             if IsAdmin.get_or_none(IsAdmin.user_id == user_id):
                 return await coroutine
@@ -130,7 +153,7 @@ class Bot(Client):
         await asyncio.sleep(1)
         await self.send_photo(msg.chat.id, "util/start_2.jpg", second_msg, reply_markup=main_keyboard)
 
-    async def send_with_reply(self, chat: str | int, text: str, keyboard: ReplyKeyboardMarkup):
+    async def send_with_reply(self, chat: int, text: str, keyboard: ReplyKeyboardMarkup):
         await self.send_message(chat, text, reply_markup=keyboard)
 
     async def add_level(self, msg: Message):
