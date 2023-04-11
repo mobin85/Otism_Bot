@@ -10,7 +10,7 @@ keyboard_agahi_bakhsh = ReplyKeyboardMarkup([
 ], resize_keyboard=True)
 
 admin_keyboard = ReplyKeyboardMarkup([
-    ["آموزش", "آزمون"],
+    ["مراحل آموزش", "ساخت آزمون"],
     ["بازگشت"]
 ], resize_keyboard=True)
 
