@@ -1,0 +1,6 @@
+downloads/
+bot1.session
+setting.py
+util/__pycache__/
+db.sqlite3
+__pycache__
