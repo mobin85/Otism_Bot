@@ -10,7 +10,7 @@ from pyrogram import Client, filters
 from pyrogram.types import Message, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from pyromod.listen import Client as C
 from setting import *
-from db import Admin, Video, IsAdmin, Question
+from db import Admin, Video, IsAdmin, Question, OtismSound
 
 
 class Bot(Client):
@@ -60,9 +60,13 @@ class Bot(Client):
             if text == "/start":
                 await self.start_command(msg)
             elif text == "می‌خواهم صدای اتیسم باشم":
-                await self.otism_sound(msg)
+                if OtismSound.get_or_none(user_id=msg.from_user.id):
+                    await self.send_message(chat, "شما در حال حاضر عضو صدای اتیسم هستید!")
+                else:
+                    await self.otism_sound(msg)
             elif text == "محتواهای آگاهی‌بخشی اتیسم":
-                await self.send_message(chat, "test", reply_markup=keyboard_agahi_bakhsh)
+                await self.send_message(chat, "محتواهای آگاهی‌بخشی اتیسم",
+                                        reply_markup=keyboard_agahi_bakhsh)
             elif text == "admin":
                 if IsAdmin.get_or_none(IsAdmin.user_id == msg.from_user.id):
                     await self.send_message(chat, "Welcome to Admin Panel", reply_markup=admin_keyboard)
@@ -94,6 +98,12 @@ class Bot(Client):
                 for video in Video.select():
                     await self.send_video(chat, video.text, "مرحله {}".format(video.id))
                     await asyncio.sleep(.5)
+            elif text == "پروفایل":
+                if res := OtismSound.get_or_none(user_id=chat):
+                    await self.send_photo(chat, res.photo, caption=res.name)
+                else:
+                    await self.send_message(chat, 'شما عضو صدای اتیسم نیستید\nبرای عضویت از گزینه ی "می خواهم صدای اتیسم باشم" اقدام کنید.')
+
 
         @self.on_callback_query()
         async def callback(_, call: CallbackQuery):
@@ -129,6 +139,7 @@ class Bot(Client):
                 questions = Question.select()
                 len_questions = len(questions)
                 answers = 0
+                msg_ids = []
                 for question in questions:
                     question_keyboard = InlineKeyboardMarkup([
                         [InlineKeyboardButton(f"{question.answer_1} (1", callback_data="1"),
@@ -136,15 +147,56 @@ class Bot(Client):
                         [InlineKeyboardButton(f"{question.answer_3} (3", callback_data="3"),
                          InlineKeyboardButton(f"{question.answer_4} (4", callback_data="4")]
                     ])
-                    await self.send_message(call.message.chat.id, f"({question.id}/{len_questions})\n{question.question}",
-                                            reply_markup=question_keyboard)
+                    msg_ids.append((await self.send_message(call.message.chat.id,
+                                                            f"({question.id}/{len_questions})\n{question.question}",
+                                                            reply_markup=question_keyboard)).id)
                     c: CallbackQuery = await call.message.chat.listen(listener_type=ListenerTypes.CALLBACK_QUERY)
                     if int(c.data) == question.answer:
                         answers += 1
-
+                await self.delete_messages(call.message.chat.id, msg_ids)
                 percent = (answers / len_questions) * 100
-                await self.send_message(call.message.chat.id, "ریدم تو این مهدی فیر {} درصد زدی بینیم بینیم".format(percent))
-                await self.send_message(call.message.chat.id, "کشید یا نکشیددددددددددددددددددددددددددددددددددد")
+                if percent > 80.0:
+                    await self.send_message(call.message.chat.id,
+                                            "شما با درصد {:.2f} در آزمون قبول شدید".format(percent))
+                    await asyncio.sleep(.5)
+                    name_last_name: str = (await call.message.chat.ask(
+                        "لطفا نام و نام خانوادگی خود را برای ثبت نام در صدای اتیسم وارد کنید")).text
+                    yes_no_keyboard = InlineKeyboardMarkup([
+                        [InlineKeyboardButton("بله", callback_data="بله"),
+                         InlineKeyboardButton("خیر", callback_data="خیر")]
+                    ])
+                    p = None
+                    async for photo in (self.get_chat_photos(call.message.chat.id, 1)):
+                        p = photo
+                        await self.send_photo(call.message.chat.id, photo.file_id,
+                                              caption="آیا از این عکس برای پروفایل شما در صدای اتیسم استفاده کنیم؟",
+                                              reply_markup=yes_no_keyboard)
+                    yes_or_no: str = (await call.message.chat.listen(listener_type=ListenerTypes.CALLBACK_QUERY)).data
+                    if yes_or_no == "بله":
+                        OtismSound.create(name=name_last_name, user_id=str(call.message.chat.id),
+                                          photo=p.file_id)
+                        await self.send_message(call.message.chat.id, "شما با موفقیت عضو صدای اتیسم شدید!")
+                    else:
+                        async def pic_rec():
+                            pic: Message = (await call.message.chat.ask("لطفا عکس مورد نظر خودتان را بفرستید"))
+                            if pic.photo:
+                                await self.send_message(call.message.chat.id,
+                                                        "عکس مورد نظر به عنوان پروفایل شما در صدای اتیسم انتخاب شد!")
+                                return pic.photo.file_id
+                            else:
+                                await self.send_message(call.message.chat.id, "لطفا یک عکس بفرستید!")
+                                return await pic_rec()
+
+                        picture: str = await pic_rec()
+                        OtismSound.create(name=name_last_name, user_id=str(call.message.chat.id), photo=picture)
+                        await self.send_message(call.message.chat.id, "شما با موفقیت عضو صدای اتیسم شدید!",
+                                                reply_markup=main_keyboard)
+
+                else:
+                    await self.send_message(call.message.chat.id,
+                                            "شما با درصد {:.2f} در آزمون رد شدید لطفا مجدد با دقت آموزش هارا نگاه کنید."
+                                            .format(percent),
+                                            reply_markup=main_keyboard)
 
         self.run()
 
@@ -183,23 +235,23 @@ class Bot(Client):
 
     async def start_command(self, msg: Message):
         first_caption = """کاش همه اتیسم رو می‌شناختن...
-این آرزوی خیلی از پدران و مادران کودکان دارای اتیسم است"""
+    این آرزوی خیلی از پدران و مادران کودکان دارای اتیسم است"""
         await self.send_photo(msg.chat.id, "util/start_1.jpg", caption=first_caption)
         first_msg = """سلام
-امیدواریم خوب باشید
-
-خیلی خوشحالیم که اینجایید و می‌خواید صدای اتیسم باشید، صدای ما در «انجمن اتیسم ایران» به تنهایی به جایی نمی‌رسه، اما ایمان داریم با کمک شما صدامون به خیلی جاها می‌رسه و می‌تونیم اتیسم رو خیلی بهتر و دقیق‌تر به جامعه معرفی کنیم.
-
-به امید روزی که همه اتیسم رو بشناسن و کودکان دارای اتیسم و خانواده‌شون خیلی راحت بتونن زندگی کنن.
-به امید روزهای روشن‌تر برای جامعه اتیسم ایران"""
+    امیدواریم خوب باشید
+    
+    خیلی خوشحالیم که اینجایید و می‌خواید صدای اتیسم باشید، صدای ما در «انجمن اتیسم ایران» به تنهایی به جایی نمی‌رسه، اما ایمان داریم با کمک شما صدامون به خیلی جاها می‌رسه و می‌تونیم اتیسم رو خیلی بهتر و دقیق‌تر به جامعه معرفی کنیم.
+    
+    به امید روزی که همه اتیسم رو بشناسن و کودکان دارای اتیسم و خانواده‌شون خیلی راحت بتونن زندگی کنن.
+    به امید روزهای روشن‌تر برای جامعه اتیسم ایران"""
         await asyncio.sleep(1)
         await self.send_message(msg.chat.id, first_msg)
         second_msg = """این بات توسط «انجمن اتیسم ایران» راه‌اندازی شده و کمک می‌کنه شما یه مقداری اتیسم رو بشناسید و بعدش با محتوایی که در اختیارتون قرار می‌گیره کمک کنید افراد بیشتری اتیسم رو بشناسن. 
-ممنون از اینکه همراه جامعه اتیسم هستید.
-اینستاگرام‌مون رو داری؟    https://www.instagram.com/iran.autism.association/
-اینم وب‌سایت: irautism.org  
-
-آماده‌ای «صدای اتیسم باشی؟»"""
+    ممنون از اینکه همراه جامعه اتیسم هستید.
+    اینستاگرام‌مون رو داری؟    https://www.instagram.com/iran.autism.association/
+    اینم وب‌سایت: irautism.org  
+    
+    آماده‌ای «صدای اتیسم باشی؟»"""
         await asyncio.sleep(1)
         await self.send_photo(msg.chat.id, "util/start_2.jpg", second_msg, reply_markup=main_keyboard)
 
@@ -214,7 +266,6 @@ class Bot(Client):
             await msg.reply("ذخیره شد!", reply_markup=admin_keyboard)
             video_path = await self.download_media(video)
             Video.create(text=text.text, video_path=video_path)
-            print("دخیره شد!")
         elif ok.text == "لغو":
             await msg.reply("لغو شد!", reply_markup=admin_keyboard)
 

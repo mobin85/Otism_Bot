@@ -30,6 +30,12 @@ class Question(BaseModel):
     answer_4 = CharField()
 
 
+class OtismSound(BaseModel):
+    name = CharField()
+    photo = CharField()
+    user_id = CharField()
+
+
 db.connect()
 if __name__ == '__main__':
-    db.create_tables([Video, Admin, IsAdmin, Question])
+    db.create_tables([Video, Admin, IsAdmin, Question, OtismSound])
