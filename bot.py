@@ -3,6 +3,7 @@ import re
 from pathlib import Path
 from typing import Coroutine
 
+from aiofiles import os
 from pyromod.listen.listen import ListenerTypes
 
 from util import *
@@ -166,22 +167,37 @@ class Bot(Client):
                          InlineKeyboardButton("خیر", callback_data="خیر")]
                     ])
                     p = None
+                    functions = [instagram_story,
+                                 instagram_post,
+                                 instagram_post_background_white,
+                                 instagram_story_background_white]
                     async for photo in (self.get_chat_photos(call.message.chat.id, 1)):
                         p = photo
-                        await self.send_photo(call.message.chat.id, photo.file_id,
-                                              caption="آیا از این عکس برای پروفایل شما در صدای اتیسم استفاده کنیم؟",
-                                              reply_markup=yes_no_keyboard)
+                        m = await self.send_photo(call.message.chat.id, photo.file_id,
+                                                  caption="آیا از این عکس برای پروفایل شما در صدای اتیسم استفاده کنیم؟",
+                                                  reply_markup=yes_no_keyboard)
                     yes_or_no: str = (await call.message.chat.listen(listener_type=ListenerTypes.CALLBACK_QUERY)).data
                     if yes_or_no == "بله":
                         OtismSound.create(name=name_last_name, user_id=str(call.message.chat.id),
                                           photo=p.file_id)
+                        with Image.open(p := await m.download()) as image:
+                            for i, func in enumerate(functions, start=1):
+                                await func(image, (e := f"{call.message.chat.id}_{i}.png"))
+                                await self.send_photo(call.message.chat.id, e)
+                                await asyncio.sleep(.1)
+                                await os.remove(e)
                         await self.send_message(call.message.chat.id, "شما با موفقیت عضو صدای اتیسم شدید!",
                                                 reply_markup=main_keyboard)
                     else:
                         async def pic_rec():
                             pic: Message = (await call.message.chat.ask("لطفا عکس مورد نظر خودتان را بفرستید"))
                             if pic.photo:
-                                print((await pic.download()))
+                                with Image.open(p := await pic.download()) as image:
+                                    for i, func in enumerate(functions, start=1):
+                                        await func(image, (e := f"{call.message.chat.id}_{i}.png"))
+                                        await self.send_photo(call.message.chat.id, e)
+                                        await asyncio.sleep(.1)
+                                        await os.remove(e)
                                 await self.send_message(call.message.chat.id,
                                                         "عکس مورد نظر به عنوان پروفایل شما در صدای اتیسم انتخاب شد!")
                                 return pic.photo.file_id
