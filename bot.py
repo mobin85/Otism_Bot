@@ -102,8 +102,8 @@ class Bot(Client):
                 if res := OtismSound.get_or_none(user_id=chat):
                     await self.send_photo(chat, res.photo, caption=res.name)
                 else:
-                    await self.send_message(chat, 'شما عضو صدای اتیسم نیستید\nبرای عضویت از گزینه ی "می خواهم صدای اتیسم باشم" اقدام کنید.')
-
+                    await self.send_message(chat,
+                                            'شما عضو صدای اتیسم نیستید\nبرای عضویت از گزینه ی "می خواهم صدای اتیسم باشم" اقدام کنید.')
 
         @self.on_callback_query()
         async def callback(_, call: CallbackQuery):
@@ -175,11 +175,13 @@ class Bot(Client):
                     if yes_or_no == "بله":
                         OtismSound.create(name=name_last_name, user_id=str(call.message.chat.id),
                                           photo=p.file_id)
-                        await self.send_message(call.message.chat.id, "شما با موفقیت عضو صدای اتیسم شدید!")
+                        await self.send_message(call.message.chat.id, "شما با موفقیت عضو صدای اتیسم شدید!",
+                                                reply_markup=main_keyboard)
                     else:
                         async def pic_rec():
                             pic: Message = (await call.message.chat.ask("لطفا عکس مورد نظر خودتان را بفرستید"))
                             if pic.photo:
+                                print((await pic.download()))
                                 await self.send_message(call.message.chat.id,
                                                         "عکس مورد نظر به عنوان پروفایل شما در صدای اتیسم انتخاب شد!")
                                 return pic.photo.file_id
@@ -191,7 +193,6 @@ class Bot(Client):
                         OtismSound.create(name=name_last_name, user_id=str(call.message.chat.id), photo=picture)
                         await self.send_message(call.message.chat.id, "شما با موفقیت عضو صدای اتیسم شدید!",
                                                 reply_markup=main_keyboard)
-
                 else:
                     await self.send_message(call.message.chat.id,
                                             "شما با درصد {:.2f} در آزمون رد شدید لطفا مجدد با دقت آموزش هارا نگاه کنید."
@@ -236,7 +237,7 @@ class Bot(Client):
     async def start_command(self, msg: Message):
         first_caption = """کاش همه اتیسم رو می‌شناختن...
     این آرزوی خیلی از پدران و مادران کودکان دارای اتیسم است"""
-        await self.send_photo(msg.chat.id, "util/start_1.jpg", caption=first_caption)
+        await self.send_photo(msg.chat.id, "util/start_1.jpg", caption=first_caption, reply_markup=main_keyboard)
         first_msg = """سلام
     امیدواریم خوب باشید
     
@@ -245,7 +246,7 @@ class Bot(Client):
     به امید روزی که همه اتیسم رو بشناسن و کودکان دارای اتیسم و خانواده‌شون خیلی راحت بتونن زندگی کنن.
     به امید روزهای روشن‌تر برای جامعه اتیسم ایران"""
         await asyncio.sleep(1)
-        await self.send_message(msg.chat.id, first_msg)
+        await self.send_message(msg.chat.id, first_msg, reply_markup=main_keyboard)
         second_msg = """این بات توسط «انجمن اتیسم ایران» راه‌اندازی شده و کمک می‌کنه شما یه مقداری اتیسم رو بشناسید و بعدش با محتوایی که در اختیارتون قرار می‌گیره کمک کنید افراد بیشتری اتیسم رو بشناسن. 
     ممنون از اینکه همراه جامعه اتیسم هستید.
     اینستاگرام‌مون رو داری؟    https://www.instagram.com/iran.autism.association/
