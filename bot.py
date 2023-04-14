@@ -99,6 +99,16 @@ class Bot(Client):
                 for video in Video.select():
                     await self.send_video(chat, video.text, "مرحله {}".format(video.id))
                     await asyncio.sleep(.5)
+            elif text == "حذف کردن مرحله":
+                yes_or_no_keyboard = ReplyKeyboardMarkup([
+                    ["بله", "خیر"]
+                ], resize_keyboard=True)
+                yes_or_no = await msg.chat.ask("**آیا همه ی مراحل حذف شود؟**", reply_markup=yes_or_no_keyboard)
+                if yes_or_no.text == "بله":
+                    Video.raw("DELETE FROM video")
+                    await self.send_message(chat, "همه ی مراحل با موفقیت حذف شدند")
+                elif yes_or_no.text == "لغو":
+                    await self.send_message(chat, "با موفقیت لغو شد!")
             elif text == "پروفایل":
                 if res := OtismSound.get_or_none(user_id=chat):
                     await self.send_photo(chat, res.photo, caption=res.name)
